@@ -107,6 +107,8 @@ pytest
 
 測試皆為純函式（帳號正規化、HTML/JSON 解析與作者過濾、分批邏輯），不需網路或 API 金鑰。
 
+每次推送與 PR 會由 GitHub Actions 在 Python 3.9–3.12 自動執行 `pytest`（設定見 `.github/workflows/ci.yml`）。
+
 ## 運作原理
 
 - **抓取**：Threads 無開放公開 API，本工具解析個人頁 HTML 內嵌的 JSON 取得公開貼文（只取本人貼文，會過濾轉貼/引用他人內容）。
@@ -130,6 +132,8 @@ threads_outputer/
   cli.py        # 命令列介面
   py.typed      # 型別標記（PEP 561）
 tests/          # 單元測試（pytest）
+docs/SPEC.md    # 原始需求說明
+.github/workflows/ci.yml  # GitHub Actions CI
 requirements.txt        # 依賴
 pyproject.toml          # 套件與 CLI 指令設定
 ```
