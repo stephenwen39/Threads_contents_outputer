@@ -91,6 +91,9 @@ def main(argv=None) -> int:
         format="%(levelname)s %(message)s",
         stream=sys.stderr,
     )
+    # 壓低第三方套件的 log 噪音（例如 httpx 會印出每次 HTTP 請求/回應）
+    for noisy in ("httpx", "httpcore", "openai", "urllib3"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
 
     try:
         fetcher = ThreadsFetcher(max_posts=args.max_posts)

@@ -7,6 +7,8 @@ import pytest
 from threads_outputer.analyzer import (
     AnalyzerError,
     _batch_posts,
+    _build_attempts,
+    _supports_custom_temperature,
     _BATCH_CHAR_LIMIT,
     _PER_POST_CHAR_LIMIT,
     generate_video_outlines,
@@ -39,6 +41,21 @@ def test_batch_posts_respects_limit_per_batch():
 def test_batch_posts_single_batch_when_small():
     posts = _make_posts(3, 100)
     assert len(_batch_posts(posts)) == 1
+
+
+@pytest.mark.parametrize("model", ["gpt-5", "gpt-5-mini", "o1", "o3-mini", "o4-mini"])
+def test_reasoning_models_skip_temperature(model):
+    assert _supports_custom_temperature(model) is False
+    attempts = _build_attempts(model, 0.6)
+    # 第一次就不帶 temperature，避免注定失敗的請求
+    assert "temperature" not in attempts[0]
+
+
+@pytest.mark.parametrize("model", ["gpt-4o-mini", "gpt-4o", "gpt-4.1"])
+def test_standard_models_use_temperature_first(model):
+    assert _supports_custom_temperature(model) is True
+    attempts = _build_attempts(model, 0.6)
+    assert attempts[0].get("temperature") == 0.6
 
 
 def test_generate_requires_api_key(monkeypatch):

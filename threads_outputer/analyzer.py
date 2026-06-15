@@ -75,18 +75,29 @@ def _make_client(api_key: str, base_url: Optional[str]):
     return OpenAI(api_key=api_key, base_url=base_url) if base_url else OpenAI(api_key=api_key)
 
 
+def _supports_custom_temperature(model: str) -> bool:
+    """推理型／新世代模型（gpt-5、o 系列）只支援預設 temperature。"""
+    m = (model or "").lower()
+    return not any(m.startswith(p) for p in ("gpt-5", "o1", "o3", "o4"))
+
+
+def _build_attempts(model: str, temperature: float) -> List[dict]:
+    """依模型決定送出的參數組合，避免對不支援的模型送出注定失敗的請求。
+
+    仍保留逐步退階作為保險（例如自架的 OpenAI 相容服務不支援 response_format）。
+    """
+    rf = {"response_format": {"type": "json_object"}}
+    if _supports_custom_temperature(model):
+        return [{"temperature": temperature, **rf}, rf, {}]
+    return [dict(rf), {}]
+
+
 def _chat_json(client, model: str, system: str, user: str, temperature: float = 0.6) -> dict:
     messages = [
         {"role": "system", "content": system},
         {"role": "user", "content": user},
     ]
-    # 部分較新／推理型模型（如 gpt-5、o 系列）不支援自訂 temperature 或 response_format，
-    # 因此採「先帶完整參數，遇到不支援就逐步移除後重試」的策略。
-    attempts = [
-        {"temperature": temperature, "response_format": {"type": "json_object"}},
-        {"response_format": {"type": "json_object"}},
-        {},
-    ]
+    attempts = _build_attempts(model, temperature)
     last_err: Optional[Exception] = None
     for kwargs in attempts:
         try:
@@ -96,10 +107,33 @@ def _chat_json(client, model: str, system: str, user: str, temperature: float = 
         except Exception as e:  # noqa: BLE001
             last_err = e
             msg = str(e).lower()
+            logger.debug("LLM 呼叫失敗（kwargs=%s）：%s", list(kwargs), e)
             # 只有在「參數不被支援」時才退階重試，其餘錯誤直接拋出
             if not any(k in msg for k in ("temperature", "response_format", "unsupported", "not supported")):
                 break
-    raise AnalyzerError(f"呼叫 LLM 失敗：{last_err}")
+    raise AnalyzerError(_format_llm_error(model, last_err))
+
+
+def _format_llm_error(model: str, err: Optional[Exception]) -> str:
+    """把 OpenAI 的錯誤轉成清楚、可行動的訊息。"""
+    detail = str(err) if err else "未知錯誤"
+    low = detail.lower()
+    hint = ""
+    if any(k in low for k in ("does not exist", "do not have access", "model_not_found", "model not found")):
+        hint = (
+            f"\n→ 此金鑰／帳號可能無法使用模型「{model}」。"
+            "請改用 --model gpt-4o-mini 測試；若可行，代表是 gpt-5 的權限/方案問題，"
+            "請到 OpenAI 後台確認該模型的存取權限。"
+        )
+    elif any(k in low for k in ("context length", "maximum context", "context_length_exceeded", "too many tokens")):
+        hint = "\n→ 輸入內容過長，請調低 --max-posts（例如 50）後再試。"
+    elif any(k in low for k in ("insufficient_quota", "quota", "billing", "exceeded your current")):
+        hint = "\n→ 金鑰額度或付款有問題，請到 OpenAI 後台檢查用量與付款設定。"
+    elif any(k in low for k in ("incorrect api key", "invalid api key", "invalid_api_key", "401")):
+        hint = "\n→ API key 可能無效或已撤銷，請確認 --api-key 是否正確。"
+    elif "rate limit" in low or "429" in low:
+        hint = "\n→ 觸發速率限制，請稍後再試。"
+    return f"呼叫 LLM 失敗（model={model}）：{detail}{hint}"
 
 
 def _loads_json(content: str) -> dict:
