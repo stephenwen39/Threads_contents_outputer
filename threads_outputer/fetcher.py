@@ -13,6 +13,7 @@ Threads 沒有開放的公開 API，但其網頁會把貼文資料以 JSON 形�
 
 from __future__ import annotations
 
+import logging
 import json
 import re
 import time
@@ -21,6 +22,8 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 import requests
 
 from .models import Post
+
+logger = logging.getLogger(__name__)
 
 
 class FetchError(Exception):
@@ -61,17 +64,27 @@ def normalize_username(raw: str) -> str:
 
 
 class ThreadsFetcher:
-    def __init__(self, timeout: int = 20, max_posts: int = 200, polite_delay: float = 1.0):
+    def __init__(
+        self,
+        timeout: int = 20,
+        max_posts: int = 200,
+        polite_delay: float = 1.0,
+        max_retries: int = 3,
+    ):
         self.timeout = timeout
         self.max_posts = max_posts
         self.polite_delay = polite_delay
+        self.max_retries = max_retries
         self.session = requests.Session()
         self.session.headers.update(_DEFAULT_HEADERS)
+        # 由 fetch() 設定，供呼叫端判斷是否可能未取得全部歷史貼文
+        self.pagination_succeeded: bool = False
 
     # ---------- public ----------
     def fetch(self, raw_username: str) -> Tuple[Dict[str, Any], List[Post]]:
         """回傳 (profile_info, posts)。"""
         username = normalize_username(raw_username)
+        logger.info("抓取 @%s 的個人頁…", username)
         html = self._get_profile_html(username)
         datasets = list(_iter_embedded_json(html))
 
@@ -81,17 +94,23 @@ class ThreadsFetcher:
         posts: Dict[str, Post] = {}
         for p in _extract_posts(datasets, username):
             posts[p.id] = p
+        logger.info("由頁面內嵌資料取得 %d 則貼文", len(posts))
 
         # best-effort：用 GraphQL 分頁取得更多
+        self.pagination_succeeded = False
         if user_id:
             try:
                 lsd = _find_lsd(html)
                 for p in self._graphql_more_posts(user_id, username, lsd):
-                    posts.setdefault(p.id, p)
+                    if p.id not in posts:
+                        posts[p.id] = p
+                        self.pagination_succeeded = True
                     if len(posts) >= self.max_posts:
                         break
-            except Exception:
-                pass  # 分頁失敗不影響已抓到的資料
+            except Exception as e:  # 分頁失敗不影響已抓到的資料
+                logger.debug("GraphQL 分頁失敗（忽略）：%s", e)
+        if self.pagination_succeeded:
+            logger.info("GraphQL 分頁後共 %d 則貼文", len(posts))
 
         post_list = sorted(
             posts.values(),
@@ -113,19 +132,40 @@ class ThreadsFetcher:
         last_err: Optional[Exception] = None
         for host in ("https://www.threads.com", "https://www.threads.net"):
             url = f"{host}/@{username}"
-            try:
-                resp = self.session.get(url, timeout=self.timeout)
-                if resp.status_code == 404:
-                    last_err = FetchError(f"帳號 @{username} 不存在 (404)")
-                    continue
-                resp.raise_for_status()
-                if resp.text:
-                    return resp.text
-            except requests.RequestException as e:  # noqa: PERF203
-                last_err = e
+            for attempt in range(1, self.max_retries + 1):
+                try:
+                    resp = self.session.get(url, timeout=self.timeout)
+                    if resp.status_code == 404:
+                        last_err = FetchError(f"帳號 @{username} 不存在 (404)")
+                        break  # 404 不重試，換下一個 host
+                    if resp.status_code == 429 or resp.status_code >= 500:
+                        last_err = FetchError(
+                            f"暫時性錯誤 HTTP {resp.status_code}"
+                        )
+                        self._backoff(attempt, resp)
+                        continue  # 重試
+                    resp.raise_for_status()
+                    if resp.text:
+                        return resp.text
+                    last_err = FetchError("回應內容為空")
+                    self._backoff(attempt)
+                except requests.RequestException as e:
+                    last_err = e
+                    logger.debug("連線 %s 失敗（第 %d 次）：%s", url, attempt, e)
+                    self._backoff(attempt)
         if isinstance(last_err, FetchError):
             raise last_err
         raise FetchError(f"無法連線到 Threads：{last_err}")
+
+    def _backoff(self, attempt: int, resp: Optional[requests.Response] = None) -> None:
+        """指數退避；若有 Retry-After 標頭則優先採用。"""
+        delay = min(self.polite_delay * (2 ** (attempt - 1)), 10.0)
+        if resp is not None:
+            retry_after = resp.headers.get("Retry-After")
+            if retry_after and retry_after.isdigit():
+                delay = min(float(retry_after), 30.0)
+        logger.debug("退避 %.1fs 後重試", delay)
+        time.sleep(delay)
 
     def _graphql_more_posts(
         self, user_id: str, username: str, lsd: Optional[str]
@@ -151,9 +191,11 @@ class ThreadsFetcher:
                     url, headers=headers, data=data, timeout=self.timeout
                 )
                 if resp.status_code != 200:
+                    logger.debug("GraphQL doc_id=%s 回應 HTTP %s", doc_id, resp.status_code)
                     continue
                 payload = resp.json()
-            except Exception:
+            except Exception as e:
+                logger.debug("GraphQL doc_id=%s 失敗：%s", doc_id, e)
                 continue
             found = False
             for p in _extract_posts([payload], username):
@@ -245,15 +287,34 @@ def _looks_like_post(node: Dict[str, Any]) -> bool:
 
 
 def _extract_posts(datasets: List[Any], username: str) -> List[Post]:
+    """只取出「目標帳號本人」的貼文，過濾轉貼/引用他人或回覆串等內容。"""
+    target = username.lower()
     seen: Dict[str, Post] = {}
+    skipped_foreign = 0
     for ds in datasets:
         for node in _walk(ds):
             if not isinstance(node, dict) or not _looks_like_post(node):
                 continue
             post = _node_to_post(node, username)
-            if post and post.text.strip():
-                seen.setdefault(post.id, post)
+            if not post or not post.text.strip():
+                continue
+            # 作者可辨識且非目標 → 視為他人內容，跳過
+            if post.author and post.author.lower() != target:
+                skipped_foreign += 1
+                continue
+            seen.setdefault(post.id, post)
+    if skipped_foreign:
+        logger.debug("略過 %d 則非 @%s 本人的貼文（轉貼/引用/回覆）", skipped_foreign, username)
     return list(seen.values())
+
+
+def _node_author(node: Dict[str, Any]) -> Optional[str]:
+    user = node.get("user")
+    if isinstance(user, dict):
+        u = user.get("username")
+        if u:
+            return str(u)
+    return None
 
 
 def _node_to_post(node: Dict[str, Any], username: str) -> Optional[Post]:
@@ -278,8 +339,10 @@ def _node_to_post(node: Dict[str, Any], username: str) -> Optional[Post]:
     if isinstance(tpa, dict):
         reply_count = tpa.get("direct_reply_count") or tpa.get("reply_count") or 0
 
+    author = _node_author(node)
     media_urls = _extract_media(node)
-    url = f"https://www.threads.com/@{username}/post/{code}" if code else None
+    handle = author or username
+    url = f"https://www.threads.com/@{handle}/post/{code}" if code else None
 
     return Post(
         id=str(pk),
@@ -289,6 +352,7 @@ def _node_to_post(node: Dict[str, Any], username: str) -> Optional[Post]:
         reply_count=int(reply_count or 0),
         url=url,
         media_urls=media_urls,
+        author=author,
     )
 
 

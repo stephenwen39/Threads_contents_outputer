@@ -57,6 +57,8 @@ threads-outputer iam_wei_stephen --model gpt-5 --json result.json
 | `--base-url` | OpenAI 相容服務的 base url（選填） | 無 |
 | `--max-posts` | 最多抓取貼文數 | `200` |
 | `--json` | 輸出 JSON 檔路徑 | 無（不輸出檔案） |
+| `-v`, `--verbose` | 顯示除錯訊息 | 關 |
+| `-q`, `--quiet` | 只顯示錯誤 | 關 |
 
 範例：
 
@@ -96,9 +98,18 @@ python -m threads_outputer.cli @somebody --max-posts 100 --model gpt-4o-mini --j
 
 ---
 
+## 開發 / 測試
+
+```bash
+pip install -e ".[dev]"
+pytest
+```
+
+測試皆為純函式（帳號正規化、HTML/JSON 解析與作者過濾、分批邏輯），不需網路或 API 金鑰。
+
 ## 運作原理
 
-- **抓取**：Threads 無開放公開 API，本工具解析個人頁 HTML 內嵌的 JSON 取得公開貼文。
+- **抓取**：Threads 無開放公開 API，本工具解析個人頁 HTML 內嵌的 JSON 取得公開貼文（只取本人貼文，會過濾轉貼/引用他人內容）。
 - **分析**：將貼文交給 LLM 歸納價值觀、主題，再產生影片大綱；貼文量大時自動分批摘要再彙整，避免超出 context。
 
 ## 限制
@@ -117,6 +128,8 @@ threads_outputer/
   fetcher.py    # Threads 公開貼文抓取
   analyzer.py   # LLM 分析 + 產生 YouTube 影片大綱
   cli.py        # 命令列介面
+  py.typed      # 型別標記（PEP 561）
+tests/          # 單元測試（pytest）
 requirements.txt        # 依賴
 pyproject.toml          # 套件與 CLI 指令設定
 ```

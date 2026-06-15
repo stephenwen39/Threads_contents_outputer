@@ -11,10 +11,13 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from typing import List, Optional
 
 from .models import AnalysisResult, Post, VideoOutline
+
+logger = logging.getLogger(__name__)
 
 
 class AnalyzerError(Exception):
@@ -53,8 +56,10 @@ def generate_video_outlines(
 
     total_chars = sum(len(p.text or "") for p in posts)
     if total_chars <= _SINGLE_PASS_CHAR_LIMIT:
+        logger.info("貼文量在單次上限內，直接送入 LLM 分析")
         digests = [_posts_to_block(posts)]
     else:
+        logger.info("貼文量較大（約 %d 字），啟用分批摘要流程", total_chars)
         digests = _build_digests(client, model, username, posts)
 
     return _final_synthesis(client, model, username, posts, digests)
@@ -161,6 +166,7 @@ def _build_digests(client, model: str, username: str, posts: List[Post]) -> List
     digests: List[str] = []
     batches = _batch_posts(posts)
     for i, batch in enumerate(batches, 1):
+        logger.info("摘要第 %d/%d 批（%d 則貼文）…", i, len(batches), len(batch))
         user = (
             f"帳號：@{username}（第 {i}/{len(batches)} 批，{len(batch)} 則貼文）\n\n"
             + _posts_to_block(batch)

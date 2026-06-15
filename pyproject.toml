@@ -9,14 +9,36 @@ description = "輸入 Threads 帳號，抓取公開貼文並用 LLM 產生 YouTu
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
+keywords = ["threads", "youtube", "llm", "openai", "content", "scraping"]
+authors = [{ name = "threads-outputer contributors" }]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Environment :: Console",
+    "Topic :: Multimedia :: Video",
+    "Topic :: Text Processing :: Linguistic",
+]
 dependencies = [
     "requests>=2.31.0",
     "openai>=1.30.0",
     "python-dotenv>=1.0.0",
 ]
 
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[project.urls]
+Homepage = "https://github.com/your-account/threads-outputer"
+Repository = "https://github.com/your-account/threads-outputer"
+Issues = "https://github.com/your-account/threads-outputer/issues"
+
 [project.scripts]
 threads-outputer = "threads_outputer.cli:main"
 
 [tool.setuptools]
 packages = ["threads_outputer"]
+
+[tool.setuptools.package-data]
+threads_outputer = ["py.typed"]

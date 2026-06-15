@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import sys
 
 try:
@@ -21,6 +22,8 @@ from .analyzer import AnalyzerError, generate_video_outlines
 from .fetcher import FetchError, ThreadsFetcher
 from .models import AnalysisResult
 
+logger = logging.getLogger("threads_outputer")
+
 
 def _print_result(result: AnalysisResult, profile: dict) -> None:
     line = "=" * 60
@@ -31,7 +34,7 @@ def _print_result(result: AnalysisResult, profile: dict) -> None:
     if profile.get("follower_count") is not None:
         print(f"追蹤者：{profile['follower_count']}")
     print(f"分析貼文數：{result.post_count}")
-    print(f"分析方式：{'LLM' if result.generated_by == 'llm' else '本地啟發式'}")
+    print("分析方式：LLM")
     print(line)
     print("\n【整體價值觀與內容摘要】")
     print(result.summary)
@@ -73,22 +76,41 @@ def main(argv=None) -> int:
     parser.add_argument("--model", default=None, help="LLM 模型（預設 gpt-4o-mini）")
     parser.add_argument("--base-url", dest="base_url", default=None, help="OpenAI 相容 API base url")
     parser.add_argument("--json", dest="json_out", help="將結果輸出成 JSON 檔")
+    verbosity = parser.add_mutually_exclusive_group()
+    verbosity.add_argument("-v", "--verbose", action="store_true", help="顯示除錯訊息")
+    verbosity.add_argument("-q", "--quiet", action="store_true", help="只顯示錯誤")
     args = parser.parse_args(argv)
 
+    level = logging.INFO
+    if args.verbose:
+        level = logging.DEBUG
+    elif args.quiet:
+        level = logging.ERROR
+    logging.basicConfig(
+        level=level,
+        format="%(levelname)s %(message)s",
+        stream=sys.stderr,
+    )
+
     try:
-        print(f"抓取 @{args.threads_id} 的公開貼文中…", file=sys.stderr)
         fetcher = ThreadsFetcher(max_posts=args.max_posts)
         profile, posts = fetcher.fetch(args.threads_id)
-        print(f"已取得 {len(posts)} 則貼文，使用 LLM 分析中…", file=sys.stderr)
+        username = profile.get("username", args.threads_id)
+        logger.info("已取得 %d 則 @%s 的公開貼文", len(posts), username)
+        if not fetcher.pagination_succeeded:
+            logger.warning(
+                "僅取得頁面提供的近期公開貼文，可能非該帳號全部歷史貼文。"
+            )
+        logger.info("使用 LLM（%s）分析中…", args.model or "gpt-4o-mini")
         result = generate_video_outlines(
-            profile.get("username", args.threads_id),
+            username,
             posts,
             api_key=args.api_key,
             model=args.model,
             base_url=args.base_url,
         )
     except (FetchError, AnalyzerError) as e:
-        print(f"錯誤：{e}", file=sys.stderr)
+        logger.error("%s", e)
         return 1
 
     _print_result(result, profile)
@@ -97,7 +119,7 @@ def main(argv=None) -> int:
         out = {"profile": profile, "analysis": result.to_dict()}
         with open(args.json_out, "w", encoding="utf-8") as f:
             json.dump(out, f, ensure_ascii=False, indent=2)
-        print(f"\n已輸出 JSON 至 {args.json_out}", file=sys.stderr)
+        logger.info("已輸出 JSON 至 %s", args.json_out)
 
     return 0
 

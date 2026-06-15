@@ -17,6 +17,7 @@ class Post:
     reply_count: int = 0
     url: Optional[str] = None
     media_urls: List[str] = field(default_factory=list)
+    author: Optional[str] = None  # 貼文作者 username（用來過濾轉貼/他人內容）
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -49,7 +50,7 @@ class AnalysisResult:
     core_values: List[str]  # 展現的價值觀
     recurring_themes: List[str]  # 反覆出現的主題
     videos: List[VideoOutline]
-    generated_by: str = "llm"  # "llm" 或 "heuristic"
+    generated_by: str = "llm"  # 一律由 LLM 產生
 
     def to_dict(self) -> Dict[str, Any]:
         d = asdict(self)
