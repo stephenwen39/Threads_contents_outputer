@@ -19,8 +19,6 @@ Only retrieves publicly available information.
 3. 由 LLM 依資訊量自行判斷可切成**幾支 YouTube 影片**，並產出每支影片的完整大綱
 4. 把結果輸出成 **JSON 檔**
 
-> 一律「將貼文輸入 LLM，由 LLM 決定輸出」，不使用本地啟發式。金鑰由使用者自備、用自己的額度。
-
 ---
 
 ## 快速開始（clone 後在自己電腦用 CLI 產 JSON）
@@ -28,34 +26,18 @@ Only retrieves publicly available information.
 需求：**Python 3.9 以上**、一組 **OpenAI（ChatGPT）API key**。
 
 ```bash
-# 1. 取得程式碼
-git clone <你的-repo-網址>
-cd threads_outputer
+# 取得程式碼
+git clone https://github.com/stephenwen39/Threads_contents_outputer.git
+cd Threads_contents_outputer
 
-# 2.（建議）建立虛擬環境
-python3 -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
-
-# 3. 安裝 CLI 依賴（輕量，只有 requests / openai / python-dotenv）
+# 安裝套件
 pip install -r requirements.txt
 
-# 4. 設定 API key（擇一）
-export OPENAI_API_KEY="sk-..."   # Windows PowerShell: $env:OPENAI_API_KEY="sk-..."
-#   或在指令加 --api-key sk-...
-#   或 cp .env.example .env 後填入 OPENAI_API_KEY
-
-# 5. 執行，產出 JSON
-python -m threads_outputer.cli iam_wei_stephen --model gpt-5 --json result.json
+# 執行：把 sk-... 換成你的 OpenAI API key，結果會寫進 result.json
+python -m threads_outputer.cli iam_wei_stephen --api-key sk-... --model gpt-5 --json result.json
 ```
 
 執行後會在終端機印出影片大綱，並把完整結果寫到 `result.json`。
-
-### （選配）安裝成指令
-
-```bash
-pip install .
-threads-outputer iam_wei_stephen --model gpt-5 --json result.json
-```
 
 ---
 
