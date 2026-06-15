@@ -96,21 +96,6 @@ python -m threads_outputer.cli @somebody --max-posts 100 --model gpt-4o-mini --j
 
 ---
 
-## （選配）網頁介面
-
-兩種都可，不影響 CLI：
-
-```bash
-# A. 零依賴版（只需 requirements.txt 的套件）
-python web.py            # 打開 http://127.0.0.1:8000
-
-# B. Streamlit 版（需額外安裝）
-pip install -r requirements-web.txt
-streamlit run app.py
-```
-
----
-
 ## 運作原理
 
 - **抓取**：Threads 無開放公開 API，本工具解析個人頁 HTML 內嵌的 JSON 取得公開貼文。
@@ -132,10 +117,7 @@ threads_outputer/
   fetcher.py    # Threads 公開貼文抓取
   analyzer.py   # LLM 分析 + 產生 YouTube 影片大綱
   cli.py        # 命令列介面
-app.py          # Streamlit 網頁介面（選配）
-web.py          # 零依賴網頁介面（選配）
-requirements.txt        # CLI 核心依賴
-requirements-web.txt    # Streamlit 版額外依賴
+requirements.txt        # 依賴
 pyproject.toml          # 套件與 CLI 指令設定
 ```
 

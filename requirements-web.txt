@@ -1,4 +1,0 @@
-# 選配：Streamlit 網頁介面（app.py）才需要
-# CLI 與零依賴網頁版（web.py）不需要安裝這個
--r requirements.txt
-streamlit>=1.33.0

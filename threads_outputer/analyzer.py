@@ -44,8 +44,7 @@ def generate_video_outlines(
     if not api_key:
         raise AnalyzerError(
             "需要 LLM API 金鑰才能分析。請提供你的 OpenAI（ChatGPT）API key，"
-            "可在執行時用 --api-key 帶入、設定環境變數 OPENAI_API_KEY，"
-            "或在網頁介面的側邊欄填入。"
+            "可在執行時用 --api-key 帶入，或設定環境變數 OPENAI_API_KEY。"
         )
     if not posts:
         raise AnalyzerError("沒有可分析的貼文。")

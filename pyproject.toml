@@ -15,9 +15,6 @@ dependencies = [
     "python-dotenv>=1.0.0",
 ]
 
-[project.optional-dependencies]
-web = ["streamlit>=1.33.0"]
-
 [project.scripts]
 threads-outputer = "threads_outputer.cli:main"
 
