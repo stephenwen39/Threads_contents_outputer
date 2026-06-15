@@ -30,9 +30,9 @@ dependencies = [
 dev = ["pytest>=7.0"]
 
 [project.urls]
-Homepage = "https://github.com/your-account/threads-outputer"
-Repository = "https://github.com/your-account/threads-outputer"
-Issues = "https://github.com/your-account/threads-outputer/issues"
+Homepage = "https://github.com/stephenwen39/Threads_contents_outputer"
+Repository = "https://github.com/stephenwen39/Threads_contents_outputer"
+Issues = "https://github.com/stephenwen39/Threads_contents_outputer/issues"
 
 [project.scripts]
 threads-outputer = "threads_outputer.cli:main"
