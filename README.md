@@ -1,3 +1,15 @@
+For educational and research purposes only.
+
+Only retrieves publicly available information.
+
+本專案僅供教育、研究與學習用途使用。
+
+本工具僅擷取使用者公開可見的 Threads 資訊，不會繞過任何登入機制或存取受保護內容。
+
+使用者應自行確認其使用行為符合當地法律法規以及 Threads / Meta 的服務條款。
+
+---
+
 # Threads → YouTube 影片大綱產生器
 
 輸入一個 **Threads 帳號**，自動：
@@ -49,16 +61,18 @@ threads-outputer iam_wei_stephen --model gpt-5 --json result.json
 
 ## CLI 參數
 
-| 參數 | 說明 | 預設 |
-| --- | --- | --- |
-| `threads_id` | Threads 帳號（`name`、`@name` 或個人頁網址皆可） | 必填 |
-| `--api-key` | OpenAI / ChatGPT API key；未給則讀環境變數 `OPENAI_API_KEY` | 無 |
-| `--model` | LLM 模型，例如 `gpt-5`、`gpt-4o-mini` | `gpt-4o-mini` |
-| `--base-url` | OpenAI 相容服務的 base url（選填） | 無 |
-| `--max-posts` | 最多抓取貼文數 | `200` |
-| `--json` | 輸出 JSON 檔路徑 | 無（不輸出檔案） |
-| `-v`, `--verbose` | 顯示除錯訊息 | 關 |
-| `-q`, `--quiet` | 只顯示錯誤 | 關 |
+
+| 參數                | 說明                                                 | 預設            |
+| ----------------- | -------------------------------------------------- | ------------- |
+| `threads_id`      | Threads 帳號（`name`、`@name` 或個人頁網址皆可）                | 必填            |
+| `--api-key`       | OpenAI / ChatGPT API key；未給則讀環境變數 `OPENAI_API_KEY` | 無             |
+| `--model`         | LLM 模型，例如 `gpt-5`、`gpt-4o-mini`                    | `gpt-4o-mini` |
+| `--base-url`      | OpenAI 相容服務的 base url（選填）                          | 無             |
+| `--max-posts`     | 最多抓取貼文數                                            | `200`         |
+| `--json`          | 輸出 JSON 檔路徑                                        | 無（不輸出檔案）      |
+| `-v`, `--verbose` | 顯示除錯訊息                                             | 關             |
+| `-q`, `--quiet`   | 只顯示錯誤                                              | 關             |
+
 
 範例：
 
