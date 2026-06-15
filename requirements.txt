@@ -1,4 +1,3 @@
-# CLI 核心依賴（clone 後安裝這個就能用 CLI 產出 JSON）
 requests>=2.31.0
 openai>=1.30.0
 python-dotenv>=1.0.0
