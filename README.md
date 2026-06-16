@@ -21,7 +21,7 @@ Only retrieves publicly available information.
 
 ---
 
-## 快速開始（clone 後在自己電腦用 CLI 產 JSON）
+## 快速開始
 
 需求：**Python 3.9 以上**、一組 **OpenAI（ChatGPT）API key**。
 
@@ -33,8 +33,8 @@ cd Threads_contents_outputer
 # 安裝套件
 pip install -r requirements.txt
 
-# 執行：把 sk-... 換成你的 OpenAI API key，結果會寫進 result.json
-python -m threads_outputer.cli iam_wei_stephen --api-key sk-... --model gpt-5 --json result.json
+# 執行：把 <api_key> 換成你的 OpenAI API key，<threads_account> 換成你要抓取的 Threads 帳號，結果會寫進 result.json
+python -m threads_outputer.cli <threads_account> --api-key <api_key> --model gpt-5 --json result.json
 ```
 
 執行後會在終端機印出影片大綱，並把完整結果寫到 `result.json`。

@@ -13,9 +13,11 @@ from __future__ import annotations
 import json
 import logging
 import os
-from typing import List, Optional
+from typing import Callable, List, Optional
 
 from .models import AnalysisResult, Post, VideoOutline
+
+ProgressCb = Optional[Callable[[str], None]]
 
 logger = logging.getLogger(__name__)
 
@@ -32,14 +34,26 @@ _BATCH_CHAR_LIMIT = 12000
 _PER_POST_CHAR_LIMIT = 1500
 
 
+def _emit(progress: ProgressCb, msg: str) -> None:
+    """有 progress callback 就用它（例如更新 spinner 文字），否則記到 log。"""
+    if progress is not None:
+        progress(msg)
+    else:
+        logger.info(msg)
+
+
 def generate_video_outlines(
     username: str,
     posts: List[Post],
     api_key: Optional[str] = None,
     model: Optional[str] = None,
     base_url: Optional[str] = None,
+    progress: ProgressCb = None,
 ) -> AnalysisResult:
-    """主入口：一律使用 LLM。沒有金鑰會直接報錯。"""
+    """主入口：一律使用 LLM。沒有金鑰會直接報錯。
+
+    progress：可選的回呼，用來回報目前進度（CLI 會用它更新旋轉指示器文字）。
+    """
     api_key = api_key or os.getenv("OPENAI_API_KEY")
     model = model or os.getenv("OPENAI_MODEL") or "gpt-4o-mini"
     base_url = base_url or os.getenv("OPENAI_BASE_URL") or None
@@ -56,13 +70,13 @@ def generate_video_outlines(
 
     total_chars = sum(len(p.text or "") for p in posts)
     if total_chars <= _SINGLE_PASS_CHAR_LIMIT:
-        logger.info("貼文量在單次上限內，直接送入 LLM 分析")
+        _emit(progress, f"使用 LLM（{model}）分析 {len(posts)} 則貼文中…")
         digests = [_posts_to_block(posts)]
     else:
-        logger.info("貼文量較大（約 %d 字），啟用分批摘要流程", total_chars)
-        digests = _build_digests(client, model, username, posts)
+        _emit(progress, f"貼文量較大（約 {total_chars} 字），啟用分批摘要…")
+        digests = _build_digests(client, model, username, posts, progress)
 
-    return _final_synthesis(client, model, username, posts, digests)
+    return _final_synthesis(client, model, username, posts, digests, progress)
 
 
 # ---------------- LLM client ----------------
@@ -196,11 +210,13 @@ _DIGEST_SYSTEM = """你是社群內容分析師。你會收到某 Threads 帳號
 請用繁體中文。"""
 
 
-def _build_digests(client, model: str, username: str, posts: List[Post]) -> List[str]:
+def _build_digests(
+    client, model: str, username: str, posts: List[Post], progress: ProgressCb = None
+) -> List[str]:
     digests: List[str] = []
     batches = _batch_posts(posts)
     for i, batch in enumerate(batches, 1):
-        logger.info("摘要第 %d/%d 批（%d 則貼文）…", i, len(batches), len(batch))
+        _emit(progress, f"摘要第 {i}/{len(batches)} 批（{len(batch)} 則貼文）…")
         user = (
             f"帳號：@{username}（第 {i}/{len(batches)} 批，{len(batch)} 則貼文）\n\n"
             + _posts_to_block(batch)
@@ -244,8 +260,15 @@ _FINAL_SYSTEM = """你是一位資深的 YouTube 內容策略師與社群內容�
 
 
 def _final_synthesis(
-    client, model: str, username: str, posts: List[Post], digests: List[str]
+    client,
+    model: str,
+    username: str,
+    posts: List[Post],
+    digests: List[str],
+    progress: ProgressCb = None,
 ) -> AnalysisResult:
+    if len(digests) > 1:
+        _emit(progress, "彙整所有內容並產生影片大綱…")
     body = "\n\n".join(digests)
     user = (
         f"Threads 帳號：@{username}\n"

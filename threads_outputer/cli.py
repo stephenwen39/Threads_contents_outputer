@@ -21,6 +21,7 @@ except Exception:  # noqa: BLE001
 from .analyzer import AnalyzerError, generate_video_outlines
 from .fetcher import FetchError, ThreadsFetcher
 from .models import AnalysisResult
+from .spinner import Spinner
 
 logger = logging.getLogger("threads_outputer")
 
@@ -104,14 +105,20 @@ def main(argv=None) -> int:
             logger.warning(
                 "僅取得頁面提供的近期公開貼文，可能非該帳號全部歷史貼文。"
             )
-        logger.info("使用 LLM（%s）分析中…", args.model or "gpt-4o-mini")
-        result = generate_video_outlines(
-            username,
-            posts,
-            api_key=args.api_key,
-            model=args.model,
-            base_url=args.base_url,
+        model_name = args.model or "gpt-4o-mini"
+        spinner = Spinner(
+            f"使用 LLM（{model_name}）分析中…",
+            enabled=(not args.quiet) and sys.stderr.isatty(),
         )
+        with spinner:
+            result = generate_video_outlines(
+                username,
+                posts,
+                api_key=args.api_key,
+                model=args.model,
+                base_url=args.base_url,
+                progress=spinner.update if spinner.enabled else None,
+            )
     except (FetchError, AnalyzerError) as e:
         logger.error("%s", e)
         return 1
